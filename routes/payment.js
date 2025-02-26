@@ -195,10 +195,6 @@ paymentRouter
     let { accessToken } = req; // Current access token
     console.log("Access Token:", accessToken);
 
-    function generateRandomId() {
-      return Math.random().toString(36).slice(2);
-    }
-
     const qr_body = {
       order_output: order_output,
       order_no: order_number,
