@@ -179,7 +179,178 @@ paymentRouter
       return res.status(500).send(error);
     }
   })
-  .post("/public/generate-qr", storeTokens, async (req, res) => {
+  .post("/public/terminal/pay-key", async (req, res) => {
+    const { onboarding_key, connection_type } = req.body;
+
+    // Replace hardcoded values with the ones from the request body
+    const key = {
+      onboarding_key: onboarding_key,
+      connection_type: connection_type,
+    };
+
+    console.log("Onboarding:", key);
+
+    const onboardingAPI = process.env.ONBOARDING_API;
+    console.log("Payment API URL:", onboardingAPI);
+
+    try {
+      const response = await axios.post(onboardingAPI, key, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      // Check if the status is not in the range of 2xx
+      if (response.status !== 200) {
+        console.error("API Response Error:", response.data);
+        return res.status(response.status).json({
+          error: "Failed to generate token & refresh code",
+          details: response.data,
+        });
+      }
+
+      const { access_token, refresh_token } = response.data;
+
+      await client.token.create({
+        data: {
+          type: "Terminal",
+          accessToken: access_token,
+          refreshToken: refresh_token,
+          expiresIn: 1800,
+        },
+      });
+
+      const responseData = response.data;
+      console.log(responseData);
+
+      tokens.expiresAt = Date.now() + TOKEN_EXPIRATION_TIME;
+      console.log("Expires at:", new Date(tokens.expiresAt).toLocaleString());
+      // Save the tokens to the database
+
+      // Success: Send the response data back to the client
+      res.status(200).json(response.data);
+    } catch (error) {
+      if (error.response) {
+        // Server responded with a status code out of the range of 2xx
+        console.error("Error status:", error.response.status);
+        console.error("Error data:", error.response.data);
+        return res.status(error.response.status).json({
+          error: "Failed to generate token & refresh code",
+          details: error.response.data,
+        });
+      } else if (error.request) {
+        // Request was made but no response received
+        console.error("Error request:", error.request);
+        return res
+          .status(500)
+          .json({ error: "No response from the payment API" });
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        console.error("Error message:", error.message);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+    }
+  })
+  .post("/public/terminal/refresh-token", async (req, res) => {
+    try {
+      // Fetch the most recent token from the database
+      const token = await client.token.findFirst({
+        where: {
+          type: "Terminal",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      if (!token) {
+        return res.status(404).json({ error: "No tokens found" });
+      }
+
+      // Set the tokens in the request object
+      const accessToken = token.accessToken;
+      const refreshToken = token.refreshToken;
+
+      console.log("Request Access Token:", accessToken);
+      console.log("Request Refresh Token:", refreshToken);
+
+      if (!refreshToken) {
+        return res.status(400).json({ error: "Refresh token is required" });
+      }
+
+      const refresh_Token = {
+        refresh_token: refreshToken,
+      };
+
+      console.log("Request Body:", refresh_Token);
+
+      const refresh_token_url = process.env.REFRESH_TOKEN;
+      try {
+        const response = await axios.post(refresh_token_url, refresh_Token, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (response.status !== 200) {
+          console.error("API Response Error:", response.data);
+          return res.status(response.status).json({
+            error: "Failed to generate token & refresh code",
+            details: response.data,
+          });
+        }
+
+        const newAccessToken = response.data.access_token;
+        const newRefreshToken = response.data.refresh_token;
+
+        // Update the token in the database
+        await client.token.update({
+          where: {
+            id: token.id,
+          },
+          data: {
+            accessToken: newAccessToken,
+            // Replace old accessToken with new refreshToken
+          },
+        });
+
+        return res.status(200).json(response.data);
+      } catch (error) {
+        console.error(
+          "Fetch Error:",
+          error.response ? error.response.data : error.message,
+        );
+        return res.status(500).json({
+          error: "Internal server error",
+          details: error.response ? error.response.data : null,
+        });
+      }
+    } catch (error) {
+      console.error("Database error:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  })
+  .get("/public/terminal/token", async (req, res) => {
+    try {
+      const token = await client.token.findFirst({
+        where: {
+          type: "Terminal",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+      res.status(200).json({
+        accessToken: token.accessToken,
+        token_expired_at: token.expiresIn,
+      });
+    } catch (error) {
+      logger.error(error);
+      return res.status(500).send(error);
+    }
+  })
+  .post("/public/terminal/generate-qr", storeTokens, async (req, res) => {
     const {
       order_output,
       order_number,
