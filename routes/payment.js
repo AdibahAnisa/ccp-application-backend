@@ -179,6 +179,7 @@ paymentRouter
       return res.status(500).send(error);
     }
   })
+
   .post("/public/terminal/pay-key", async (req, res) => {
     const { onboarding_key, connection_type } = req.body;
 
