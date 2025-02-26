@@ -178,6 +178,116 @@ paymentRouter
       logger.error(error);
       return res.status(500).send(error);
     }
+  })
+  .post("/public/generate-qr", storeTokens, async (req, res) => {
+    const {
+      order_output,
+      order_number,
+      validity_qr,
+      order_amount,
+      store_id,
+      terminal_id,
+      shift_id,
+      to_whatsapp_no,
+    } = req.body;
+    console.log("Request Body:", req.body);
+
+    let { accessToken } = req; // Current access token
+    console.log("Access Token:", accessToken);
+
+    function generateRandomId() {
+      return Math.random().toString(36).slice(2);
+    }
+
+    const qr_body = {
+      order_output: order_output,
+      order_no: order_number,
+      override_existing_unprocessed_order_no: "NO",
+      order_amount: order_amount,
+      qr_validity: validity_qr, //store in env
+      store_id: store_id,
+      terminal_id: terminal_id,
+      shift_id: shift_id,
+      to_whatsapp_no: to_whatsapp_no, //store in env
+      language: "en_us",
+      whatsapp_template_id: "payment_qr",
+      parameters: [
+        { text: "Faizal" },
+        { text: "8888888" },
+        { text: "1" },
+        { text: "4" },
+        { text: "RM1400" },
+      ],
+    };
+
+    console.log("QR Body:", qr_body);
+
+    const paymentApi = process.env.PAYMENT_API;
+    console.log("Payment API URL:", paymentApi);
+
+    try {
+      const response = await axios.post(paymentApi, qr_body, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      console.log("API Response:", response.data);
+
+      if (response.status !== 200) {
+        console.error("API Response Error:", response.data);
+        return res.status(response.status).json({
+          error: "Failed to generate QR code",
+          details: response.data,
+        });
+      }
+
+      req.accessToken = response.data.access_token;
+      req.refreshToken = response.data.refresh_token;
+
+      // Set an interval to refresh the token every 10 minutes
+      const refreshInterval = 10 * 60 * 1000; // 10 minutes in milliseconds
+      setTimeout(async () => {
+        try {
+          const refreshResponse = await axios.post(
+            `${process.env.BASE_URL}:${process.env.PORT}/payment/refresh-token`,
+            {},
+            {
+              headers: {
+                Authorization: `Bearer ${accessToken}`, // Use the current token
+              },
+            },
+          );
+
+          if (refreshResponse.status === 200) {
+            console.log("Token refreshed successfully:", refreshResponse.data);
+
+            // Update access token for future requests
+            accessToken = refreshResponse.data.access_token;
+          } else {
+            console.error("Failed to refresh token:", refreshResponse.data);
+          }
+        } catch (error) {
+          console.error(
+            "Refresh Token Fetch Error:",
+            error.response ? error.response.data : error.message,
+          );
+        }
+      }, refreshInterval);
+
+      // Success: Send the response data back to the client
+      res.status(200).json({ data: response.data, order: qr_body });
+    } catch (error) {
+      console.error(
+        "Fetch Error:",
+        error.response ? error.response.data : error.message,
+      );
+      return res.status(500).json({
+        error: "Internal server error",
+        details: error.response ? error.response.data : null,
+      });
+    }
   });
 
 paymentRouter.use(tokenMiddleware);
@@ -581,7 +691,7 @@ paymentRouter.post("/pegepay/qr/callback", async (req, res) => {
         .status(404)
         .json({ error: "Transaction record not found, wrong transaction id" });
     }
-  } catch (error) {}
+  } catch (error) { }
 });
 
 paymentRouter.post("/topup-wallet", async (req, res) => {
