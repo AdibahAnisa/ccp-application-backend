@@ -456,6 +456,147 @@ paymentRouter
         details: error.response ? error.response.data : null,
       });
     }
+  })
+  .post("/callbackUrl/terminal", async (req, res) => {
+    const payload = req.body;
+
+    if (!validatePayload(payload)) {
+      return res.status(400).send("Invalid payload");
+    }
+
+    // Process the payment notification
+    if (payload.order_status === "paid") {
+      await handlePaymentSuccess(payload);
+      try {
+        const updatedTransaction = await client.paymentTransaction.create({
+          data: {
+            id: uuidv4(),
+            userId: req.user.userId,
+            order_amount: payload.order_amount,
+            order_no: payload.order_no,
+            order_status: payload.order_status,
+            store_id: payload.store_id,
+            shift_id: payload.shift_id,
+            terminal_id: payload.terminal_id,
+            updatedAt: new Date(),
+          },
+        });
+
+        console.log("Transaction updated:", updatedTransaction);
+
+        // Check if shift_id is "Token"
+        if (payload.store_id == "Token") {
+          // Get walletId from the Wallet model using userId
+          const wallet = await client.wallet.findUnique({
+            where: { userId: req.user.userId },
+          });
+
+          if (wallet) {
+            // Create a WalletTransaction
+            const walletTransaction = await client.walletTransaction.create({
+              data: {
+                id: uuidv4(),
+                walletId: wallet.id, // Use the walletId from the found wallet
+                type: "Terminal",
+                amount: payload.order_amount,
+                status: "completed",
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            });
+
+            console.log("WalletTransaction created:", walletTransaction);
+
+            // Update the Wallet amount
+            const updatedWallet = await client.wallet.update({
+              where: { id: wallet.id },
+              data: {
+                amount: { increment: payload.order_amount },
+              },
+            });
+
+            console.log("Wallet updated:", updatedWallet);
+          } else {
+            console.error("Wallet not found for user:", req.user.userId);
+          }
+        } else {
+          const transaction = await client.transaction.create({
+            data: {
+              id: uuidv4(),
+              userId: req.user.userId,
+              description: payload.shift_id,
+              pbtId: payload.terminal_id,
+              amount: payload.order_amount.toString(),
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          });
+          console.log("Transaction created:", transaction);
+        }
+      } catch (error) {
+        console.error("Error updating transaction:", error);
+      }
+    }
+
+    res.status(200).send(payload);
+  })
+  .post("/terminal/transaction-details", async (req, res) => {
+    try {
+      // Fetch the most recent token from the database
+      const token = await client.token.findFirst({
+        where: {
+          type: "Terminal",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      if (!token) {
+        return res.status(404).json({ error: "No tokens found" });
+      }
+
+      // Set the tokens in the request object
+      const accessToken = token.accessToken;
+
+      // return res.status(200).json(accessToken);
+
+      // Use correct environment variable for the Pegepay API URL
+      const pegeypay_process_url = process.env.PEGEPAY_PROCESS_API;
+
+      try {
+        // Send the request to the Pegepay API
+        const response = await axios.post(pegeypay_process_url, req.body, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (response.status !== 200) {
+          console.error("API Response Error:", response.data);
+          return res.status(response.status).json({
+            error: "Failed to generate token & refresh code",
+            details: response.data,
+          });
+        }
+
+        // Return the successful response from the Pegepay API
+        return res.status(200).json(response.data);
+      } catch (error) {
+        console.error(
+          "Fetch Error:",
+          error.response ? error.response.data : error.message,
+        );
+        return res.status(500).json({
+          error: "Internal server error",
+          details: error.response ? error.response.data : null,
+        });
+      }
+    } catch (error) {
+      console.error("Database error:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
   });
 
 paymentRouter.use(tokenMiddleware);
