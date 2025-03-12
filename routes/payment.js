@@ -357,7 +357,6 @@ paymentRouter
       order_number,
       validity_qr,
       order_amount,
-      store_id,
       terminal_id,
       shift_id,
       to_whatsapp_no,
@@ -373,7 +372,7 @@ paymentRouter
       override_existing_unprocessed_order_no: "NO",
       order_amount: order_amount,
       qr_validity: validity_qr, //store in env
-      store_id: store_id,
+      store_id: "Terminal",
       terminal_id: terminal_id,
       shift_id: shift_id,
       to_whatsapp_no: to_whatsapp_no, //store in env
@@ -485,7 +484,7 @@ paymentRouter
         console.log("Transaction updated:", updatedTransaction);
 
         // Check if shift_id is "Token"
-        if (payload.store_id == "Token") {
+        if (payload.store_id == "Terminal") {
           // Get walletId from the Wallet model using userId
           const wallet = await client.wallet.findUnique({
             where: { userId: req.user.userId },
@@ -546,6 +545,423 @@ paymentRouter
       const token = await client.token.findFirst({
         where: {
           type: "Terminal",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      if (!token) {
+        return res.status(404).json({ error: "No tokens found" });
+      }
+
+      // Set the tokens in the request object
+      const accessToken = token.accessToken;
+
+      // return res.status(200).json(accessToken);
+
+      // Use correct environment variable for the Pegepay API URL
+      const pegeypay_process_url = process.env.PEGEPAY_PROCESS_API;
+
+      try {
+        // Send the request to the Pegepay API
+        const response = await axios.post(pegeypay_process_url, req.body, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (response.status !== 200) {
+          console.error("API Response Error:", response.data);
+          return res.status(response.status).json({
+            error: "Failed to generate token & refresh code",
+            details: response.data,
+          });
+        }
+
+        // Return the successful response from the Pegepay API
+        return res.status(200).json(response.data);
+      } catch (error) {
+        console.error(
+          "Fetch Error:",
+          error.response ? error.response.data : error.message,
+        );
+        return res.status(500).json({
+          error: "Internal server error",
+          details: error.response ? error.response.data : null,
+        });
+      }
+    } catch (error) {
+      console.error("Database error:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  })
+  .post("/public/lpr/pay-key", async (req, res) => {
+    const { onboarding_key, connection_type } = req.body;
+
+    // Replace hardcoded values with the ones from the request body
+    const key = {
+      onboarding_key: onboarding_key,
+      connection_type: connection_type,
+    };
+
+    console.log("Onboarding:", key);
+
+    const onboardingAPI = process.env.ONBOARDING_API;
+    console.log("Payment API URL:", onboardingAPI);
+
+    try {
+      const response = await axios.post(onboardingAPI, key, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      // Check if the status is not in the range of 2xx
+      if (response.status !== 200) {
+        console.error("API Response Error:", response.data);
+        return res.status(response.status).json({
+          error: "Failed to generate token & refresh code",
+          details: response.data,
+        });
+      }
+
+      const { access_token, refresh_token } = response.data;
+
+      await client.token.create({
+        data: {
+          type: "LPR",
+          accessToken: access_token,
+          refreshToken: refresh_token,
+          expiresIn: 1800,
+        },
+      });
+
+      const responseData = response.data;
+      console.log(responseData);
+
+      tokens.expiresAt = Date.now() + TOKEN_EXPIRATION_TIME;
+      console.log("Expires at:", new Date(tokens.expiresAt).toLocaleString());
+      // Save the tokens to the database
+
+      // Success: Send the response data back to the client
+      res.status(200).json(response.data);
+    } catch (error) {
+      if (error.response) {
+        // Server responded with a status code out of the range of 2xx
+        console.error("Error status:", error.response.status);
+        console.error("Error data:", error.response.data);
+        return res.status(error.response.status).json({
+          error: "Failed to generate token & refresh code",
+          details: error.response.data,
+        });
+      } else if (error.request) {
+        // Request was made but no response received
+        console.error("Error request:", error.request);
+        return res
+          .status(500)
+          .json({ error: "No response from the payment API" });
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        console.error("Error message:", error.message);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+    }
+  })
+  .post("/public/lpr/refresh-token", async (req, res) => {
+    try {
+      // Fetch the most recent token from the database
+      const token = await client.token.findFirst({
+        where: {
+          type: "LPR",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      if (!token) {
+        return res.status(404).json({ error: "No tokens found" });
+      }
+
+      // Set the tokens in the request object
+      const accessToken = token.accessToken;
+      const refreshToken = token.refreshToken;
+
+      console.log("Request Access Token:", accessToken);
+      console.log("Request Refresh Token:", refreshToken);
+
+      if (!refreshToken) {
+        return res.status(400).json({ error: "Refresh token is required" });
+      }
+
+      const refresh_Token = {
+        refresh_token: refreshToken,
+      };
+
+      console.log("Request Body:", refresh_Token);
+
+      const refresh_token_url = process.env.REFRESH_TOKEN;
+      try {
+        const response = await axios.post(refresh_token_url, refresh_Token, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (response.status !== 200) {
+          console.error("API Response Error:", response.data);
+          return res.status(response.status).json({
+            error: "Failed to generate token & refresh code",
+            details: response.data,
+          });
+        }
+
+        const newAccessToken = response.data.access_token;
+        const newRefreshToken = response.data.refresh_token;
+
+        // Update the token in the database
+        await client.token.update({
+          where: {
+            id: token.id,
+          },
+          data: {
+            accessToken: newAccessToken,
+            // Replace old accessToken with new refreshToken
+          },
+        });
+
+        return res.status(200).json(response.data);
+      } catch (error) {
+        console.error(
+          "Fetch Error:",
+          error.response ? error.response.data : error.message,
+        );
+        return res.status(500).json({
+          error: "Internal server error",
+          details: error.response ? error.response.data : null,
+        });
+      }
+    } catch (error) {
+      console.error("Database error:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  })
+  .get("/public/lpr/token", async (req, res) => {
+    try {
+      const token = await client.token.findFirst({
+        where: {
+          type: "LPR",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+      res.status(200).json({
+        accessToken: token.accessToken,
+        token_expired_at: token.expiresIn,
+      });
+    } catch (error) {
+      logger.error(error);
+      return res.status(500).send(error);
+    }
+  })
+  .post("/public/lpr/generate-qr", storeTokens, async (req, res) => {
+    const {
+      order_output,
+      order_number,
+      validity_qr,
+      order_amount,
+      terminal_id,
+      shift_id,
+      to_whatsapp_no,
+    } = req.body;
+    console.log("Request Body:", req.body);
+
+    let { accessToken } = req; // Current access token
+    console.log("Access Token:", accessToken);
+
+    const qr_body = {
+      order_output: order_output,
+      order_no: order_number,
+      override_existing_unprocessed_order_no: "NO",
+      order_amount: order_amount,
+      qr_validity: validity_qr, //store in env
+      store_id: "LPR",
+      terminal_id: terminal_id,
+      shift_id: shift_id,
+      to_whatsapp_no: to_whatsapp_no, //store in env
+      language: "en_us",
+      whatsapp_template_id: "payment_qr",
+      parameters: [
+        { text: "Faizal" },
+        { text: "8888888" },
+        { text: "1" },
+        { text: "4" },
+        { text: "RM1400" },
+      ],
+    };
+
+    console.log("QR Body:", qr_body);
+
+    const paymentApi = process.env.PAYMENT_API;
+    console.log("Payment API URL:", paymentApi);
+
+    try {
+      const response = await axios.post(paymentApi, qr_body, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      console.log("API Response:", response.data);
+
+      if (response.status !== 200) {
+        console.error("API Response Error:", response.data);
+        return res.status(response.status).json({
+          error: "Failed to generate QR code",
+          details: response.data,
+        });
+      }
+
+      req.accessToken = response.data.access_token;
+      req.refreshToken = response.data.refresh_token;
+
+      // Set an interval to refresh the token every 10 minutes
+      const refreshInterval = 10 * 60 * 1000; // 10 minutes in milliseconds
+      setTimeout(async () => {
+        try {
+          const refreshResponse = await axios.post(
+            `${process.env.BASE_URL}:${process.env.PORT}/payment/refresh-token`,
+            {},
+            {
+              headers: {
+                Authorization: `Bearer ${accessToken}`, // Use the current token
+              },
+            },
+          );
+
+          if (refreshResponse.status === 200) {
+            console.log("Token refreshed successfully:", refreshResponse.data);
+
+            // Update access token for future requests
+            accessToken = refreshResponse.data.access_token;
+          } else {
+            console.error("Failed to refresh token:", refreshResponse.data);
+          }
+        } catch (error) {
+          console.error(
+            "Refresh Token Fetch Error:",
+            error.response ? error.response.data : error.message,
+          );
+        }
+      }, refreshInterval);
+
+      // Success: Send the response data back to the client
+      res.status(200).json({ data: response.data, order: qr_body });
+    } catch (error) {
+      console.error(
+        "Fetch Error:",
+        error.response ? error.response.data : error.message,
+      );
+      return res.status(500).json({
+        error: "Internal server error",
+        details: error.response ? error.response.data : null,
+      });
+    }
+  })
+  .post("/callbackUrl/lpr", async (req, res) => {
+    const payload = req.body;
+
+    if (!validatePayload(payload)) {
+      return res.status(400).send("Invalid payload");
+    }
+
+    // Process the payment notification
+    if (payload.order_status === "paid") {
+      await handlePaymentSuccess(payload);
+      try {
+        const updatedTransaction = await client.paymentTransaction.create({
+          data: {
+            id: uuidv4(),
+            userId: req.user.userId,
+            order_amount: payload.order_amount,
+            order_no: payload.order_no,
+            order_status: payload.order_status,
+            store_id: payload.store_id,
+            shift_id: payload.shift_id,
+            terminal_id: payload.terminal_id,
+            updatedAt: new Date(),
+          },
+        });
+
+        console.log("Transaction updated:", updatedTransaction);
+
+        // Check if shift_id is "Token"
+        if (payload.store_id == "LPR") {
+          // Get walletId from the Wallet model using userId
+          const wallet = await client.wallet.findUnique({
+            where: { userId: req.user.userId },
+          });
+
+          if (wallet) {
+            // Create a WalletTransaction
+            const walletTransaction = await client.walletTransaction.create({
+              data: {
+                id: uuidv4(),
+                walletId: wallet.id, // Use the walletId from the found wallet
+                type: "LPR",
+                amount: payload.order_amount,
+                status: "completed",
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            });
+
+            console.log("WalletTransaction created:", walletTransaction);
+
+            // Update the Wallet amount
+            const updatedWallet = await client.wallet.update({
+              where: { id: wallet.id },
+              data: {
+                amount: { increment: payload.order_amount },
+              },
+            });
+
+            console.log("Wallet updated:", updatedWallet);
+          } else {
+            console.error("Wallet not found for user:", req.user.userId);
+          }
+        } else {
+          const transaction = await client.transaction.create({
+            data: {
+              id: uuidv4(),
+              userId: req.user.userId,
+              description: payload.shift_id,
+              pbtId: payload.terminal_id,
+              amount: payload.order_amount.toString(),
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          });
+          console.log("Transaction created:", transaction);
+        }
+      } catch (error) {
+        console.error("Error updating transaction:", error);
+      }
+    }
+
+    res.status(200).send(payload);
+  })
+  .post("/terminal/transaction-details", async (req, res) => {
+    try {
+      // Fetch the most recent token from the database
+      const token = await client.token.findFirst({
+        where: {
+          type: "LPR",
         },
         orderBy: {
           createdAt: "desc",
