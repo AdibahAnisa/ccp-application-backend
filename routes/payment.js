@@ -956,7 +956,7 @@ paymentRouter
 
     res.status(200).send(payload);
   })
-  .post("/terminal/transaction-details", async (req, res) => {
+  .post("/lpr/transaction-details", async (req, res) => {
     try {
       // Fetch the most recent token from the database
       const token = await client.token.findFirst({
