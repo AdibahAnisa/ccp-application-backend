@@ -360,6 +360,7 @@ paymentRouter
       terminal_id,
       shift_id,
       to_whatsapp_no,
+      override_existing_unprocessed_order_no,
     } = req.body;
     console.log("Request Body:", req.body);
 
@@ -369,7 +370,7 @@ paymentRouter
     const qr_body = {
       order_output: order_output,
       order_no: order_number,
-      override_existing_unprocessed_order_no: "NO",
+      override_existing_unprocessed_order_no: override_existing_unprocessed_order_no,
       order_amount: order_amount,
       qr_validity: validity_qr, //store in env
       store_id: "Terminal",
@@ -777,6 +778,7 @@ paymentRouter
       terminal_id,
       shift_id,
       to_whatsapp_no,
+      override_existing_unprocessed_order_no,
     } = req.body;
     console.log("Request Body:", req.body);
 
@@ -786,7 +788,7 @@ paymentRouter
     const qr_body = {
       order_output: order_output,
       order_no: order_number,
-      override_existing_unprocessed_order_no: "NO",
+      override_existing_unprocessed_order_no: override_existing_unprocessed_order_no,
       order_amount: order_amount,
       qr_validity: validity_qr, //store in env
       store_id: "LPR",
