@@ -205,6 +205,8 @@ model Parking {
   plateNumber         String    @default("No Plate Number") @map("plate_number")
   pbt                 String    @default("No PBT") @map("pbt")
   location            String    @default("No Location")
+  area                String    @default("No Area")
+  state               String    @default("No State")
   expiredAt           DateTime?
 
   createdAt DateTime @default(now()) @map("created_at")

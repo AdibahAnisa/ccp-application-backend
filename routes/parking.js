@@ -32,7 +32,7 @@ parkingRouter
   })
   .put("/edit/:id", async (req, res) => {
     const { id } = req.params;
-    const { userId, plateNumber, expiredAt, pbt, location } = req.body; // Data to update
+    const { userId, plateNumber, expiredAt, pbt, location, area, state } = req.body; // Data to update
 
     try {
       // Check if the parking exists and belongs to the user
@@ -54,6 +54,8 @@ parkingRouter
           plateNumber: plateNumber || existingParking.plateNumber,
           pbt: pbt || existingParking.pbt,
           location: location || existingParking.location,
+          area: area || existingParking.area,
+          state: state || existingParking.state,
           expiredAt: expiredAt || existingParking.expiredAt,
         },
       });
@@ -114,6 +116,8 @@ parkingRouter
       expiredAt,
       pbt,
       location,
+      area,
+      state,
       noReceipt,
     } = req.body; // Destructure relevant data from req.body
     const id = uuidv4(); // Generate unique ID
@@ -126,6 +130,8 @@ parkingRouter
           plateNumber,
           pbt,
           location,
+          area,
+          state,
           expiredAt,
           noReceipt,
           // Connect existing user

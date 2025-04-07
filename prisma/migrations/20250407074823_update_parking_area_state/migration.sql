@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE `parking` ADD COLUMN `area` VARCHAR(191) NOT NULL DEFAULT 'No Area',
+    ADD COLUMN `state` VARCHAR(191) NOT NULL DEFAULT 'No State';
