@@ -36,134 +36,170 @@ compoundRouter
 compoundRouter.use(tokenMiddleware);
 
 compoundRouter.post("/display", async (req, res) => {
-  const userId = req.user.userId;
+  const { VehicleNo, NoticeNo } = req.body;
+  const baseURL = process.env.COMPOUND_API;
 
-  const agencyId = process.env.COMPOUND_AGENCY_ID;
-  const agencyKey = process.env.COMPOUND_AGENCY_KEY;
-  const soapHeader = process.env.COMPOUND_SOAP;
+  // If both are missing, then reject
+  if (!VehicleNo && !NoticeNo) {
+    return res
+      .status(400)
+      .json({ error: "At least VehicleNo or NoticeNo must be provided." });
+  }
+
+  // Build request payload dynamically
+  const requestBody = {};
+  if (VehicleNo) requestBody.VehicleNo = VehicleNo;
+  if (NoticeNo) requestBody.NoticeNo = NoticeNo;
 
   try {
-    // Query all plate numbers from the database using Prisma
-    const plates = await client.plateNumber.findMany({
-      where: {
-        userId: userId,
-      },
-      select: {
-        plateNumber: true,
+    const response = await axios.post(baseURL + "/SearchNotice", requestBody, {
+      headers: {
+        "Content-Type": "application/json",
       },
     });
 
-    if (plates.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "No plate numbers found for this user" });
-    }
-
-    const plateNumbers = plates.map((plate) => plate.plateNumber);
-    let allSummonses = [];
-    let actionCode, responseCode, responseMessage;
-
-    for (const plateNumber of plateNumbers) {
-      const builder = new Builder();
-      const soapRequestJson = {
-        "s:Envelope": {
-          $: {
-            "xmlns:s": "http://schemas.xmlsoap.org/soap/envelope/",
-            "xmlns:a": "http://schemas.xmlsoap.org/ws/2004/08/addressing",
-          },
-          "s:Header": {
-            RequestCode: "REQ_11",
-            AgencyID: agencyId,
-            AgencyKey: agencyKey,
-          },
-          "s:Body": {
-            Request: {
-              OffenderIDNo: null,
-              VehicleRegistrationNumbers: {
-                VehicleRegistrationNumber: plateNumber,
-              },
-              NoticeNo: null,
-            },
-          },
-        },
-      };
-
-      const soapRequest = builder.buildObject(soapRequestJson);
-      const response = await axios.post(process.env.COMPOUND_API, soapRequest, {
-        headers: {
-          "Content-Type": "text/xml",
-          SOAPAction: soapHeader,
-        },
-      });
-
-      await xml2js
-        .parseStringPromise(response.data, { explicitArray: false })
-        .then((result) => {
-          const envelope = result["s:Envelope"];
-          const body = envelope["s:Body"];
-          const responseContent = body?.Response;
-
-          if (!responseContent) {
-            return;
-          }
-
-          // Set actionCode, responseCode, and responseMessage from the first response
-          if (!actionCode && !responseCode && !responseMessage) {
-            actionCode = responseContent.ActionCode || null;
-            responseCode = responseContent.ResponseCode || null;
-            responseMessage = responseContent.ResponseMessage || null;
-          }
-
-          let summonses = responseContent.Summonses?.Summons || [];
-          if (!Array.isArray(summonses)) {
-            summonses = [summonses];
-          }
-
-          allSummonses = [
-            ...allSummonses,
-            ...summonses.map((summons) => ({
-              noticeNo: summons.NoticeNo || null,
-              vehicleRegistrationNo: summons.VehicleRegistrationNo || null,
-              offenceAct: summons.OffenceAct || null,
-              offenceSection: summons.OffenceSection || null,
-              offenceDescription: summons.OffenceDescription || null,
-              offenceLocation: summons.OffenceLocation || null,
-              offenceDate: summons.OffenceDate || null,
-              noticeStatus: summons.NoticeStatus || null,
-              amount: summons.Amount || null,
-            })),
-          ];
-        })
-        .catch((err) => {
-          console.error(
-            `Error parsing response for plate ${plateNumber}:`,
-            err,
-          );
-        });
-    }
-
-    if (allSummonses.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "No summonses found for this user" });
-    }
-
-    const jsonResponse = {
-      success: true,
-      actionCode: actionCode || null,
-      responseCode: responseCode || null,
-      responseMessage: responseMessage || null,
-      summonses: allSummonses,
-    };
-
-    return res.status(200).json(jsonResponse);
+    return res.status(200).json(response.data);
   } catch (error) {
-    console.error("Error during SOAP request:", error);
-    return res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
+    console.error("Error calling external API:", error.message);
+    if (error.response) {
+      console.error("Response status:", error.response.status);
+      console.error("Response data:", error.response.data);
+    } else if (error.request) {
+      console.error("No response received:", error.request);
+    }
+    return res.status(500).json({ error: "Failed to fetch compound notice" });
   }
 });
+
+// compoundRouter.post("/display", async (req, res) => {
+//   const userId = req.user.userId;
+
+//   const agencyId = process.env.COMPOUND_AGENCY_ID;
+//   const agencyKey = process.env.COMPOUND_AGENCY_KEY;
+//   const soapHeader = process.env.COMPOUND_SOAP;
+
+//   try {
+//     // Query all plate numbers from the database using Prisma
+//     const plates = await client.plateNumber.findMany({
+//       where: {
+//         userId: userId,
+//       },
+//       select: {
+//         plateNumber: true,
+//       },
+//     });
+
+//     if (plates.length === 0) {
+//       return res
+//         .status(404)
+//         .json({ message: "No plate numbers found for this user" });
+//     }
+
+//     const plateNumbers = plates.map((plate) => plate.plateNumber);
+//     let allSummonses = [];
+//     let actionCode, responseCode, responseMessage;
+
+//     for (const plateNumber of plateNumbers) {
+//       const builder = new Builder();
+//       const soapRequestJson = {
+//         "s:Envelope": {
+//           $: {
+//             "xmlns:s": "http://schemas.xmlsoap.org/soap/envelope/",
+//             "xmlns:a": "http://schemas.xmlsoap.org/ws/2004/08/addressing",
+//           },
+//           "s:Header": {
+//             RequestCode: "REQ_11",
+//             AgencyID: agencyId,
+//             AgencyKey: agencyKey,
+//           },
+//           "s:Body": {
+//             Request: {
+//               OffenderIDNo: null,
+//               VehicleRegistrationNumbers: {
+//                 VehicleRegistrationNumber: plateNumber,
+//               },
+//               NoticeNo: null,
+//             },
+//           },
+//         },
+//       };
+
+//       const soapRequest = builder.buildObject(soapRequestJson);
+//       const response = await axios.post(process.env.COMPOUND_API, soapRequest, {
+//         headers: {
+//           "Content-Type": "text/xml",
+//           SOAPAction: soapHeader,
+//         },
+//       });
+
+//       await xml2js
+//         .parseStringPromise(response.data, { explicitArray: false })
+//         .then((result) => {
+//           const envelope = result["s:Envelope"];
+//           const body = envelope["s:Body"];
+//           const responseContent = body?.Response;
+
+//           if (!responseContent) {
+//             return;
+//           }
+
+//           // Set actionCode, responseCode, and responseMessage from the first response
+//           if (!actionCode && !responseCode && !responseMessage) {
+//             actionCode = responseContent.ActionCode || null;
+//             responseCode = responseContent.ResponseCode || null;
+//             responseMessage = responseContent.ResponseMessage || null;
+//           }
+
+//           let summonses = responseContent.Summonses?.Summons || [];
+//           if (!Array.isArray(summonses)) {
+//             summonses = [summonses];
+//           }
+
+//           allSummonses = [
+//             ...allSummonses,
+//             ...summonses.map((summons) => ({
+//               noticeNo: summons.NoticeNo || null,
+//               vehicleRegistrationNo: summons.VehicleRegistrationNo || null,
+//               offenceAct: summons.OffenceAct || null,
+//               offenceSection: summons.OffenceSection || null,
+//               offenceDescription: summons.OffenceDescription || null,
+//               offenceLocation: summons.OffenceLocation || null,
+//               offenceDate: summons.OffenceDate || null,
+//               noticeStatus: summons.NoticeStatus || null,
+//               amount: summons.Amount || null,
+//             })),
+//           ];
+//         })
+//         .catch((err) => {
+//           console.error(
+//             `Error parsing response for plate ${plateNumber}:`,
+//             err,
+//           );
+//         });
+//     }
+
+//     if (allSummonses.length === 0) {
+//       return res
+//         .status(404)
+//         .json({ message: "No summonses found for this user" });
+//     }
+
+//     const jsonResponse = {
+//       success: true,
+//       actionCode: actionCode || null,
+//       responseCode: responseCode || null,
+//       responseMessage: responseMessage || null,
+//       summonses: allSummonses,
+//     };
+
+//     return res.status(200).json(jsonResponse);
+//   } catch (error) {
+//     console.error("Error during SOAP request:", error);
+//     return res
+//       .status(500)
+//       .json({ message: "Internal server error", error: error.message });
+//   }
+// });
 
 // compoundRouter.post("/search", async (req, res) => {
 //   const { OffenderIDNo, VehicleRegistrationNumber, NoticeNo } = req.body;
