@@ -305,136 +305,181 @@ compoundRouter.post("/display", async (req, res) => {
 //   }
 // });
 
+// compoundRouter.post("/payCompound", async (req, res) => {
+//   const {
+//     OwnerIDNo,
+//     OwnerCategoryID,
+//     VehicleRegistrationNumber,
+//     NoticeNo,
+//     ReceiptNo,
+//     PaymentTransactionType,
+//     PaymentDate,
+//     PaidAmount,
+//     ChannelType,
+//     PaymentStatus,
+//     PaymentMode,
+//     PaymentLocation,
+//     Notes,
+//   } = req.body;
+
+//   const agencyId = process.env.COMPOUND_AGENCY_ID;
+//   const agencyKey = process.env.COMPOUND_AGENCY_KEY;
+
+//   if (isNaN(OwnerCategoryID)) {
+//     return res
+//       .status(400)
+//       .json({ error: "Owner Category must be an integer." });
+//   }
+
+//   if (isNaN(PaymentTransactionType)) {
+//     return res
+//       .status(400)
+//       .json({ error: "Payment Transaction Type must be an integer." });
+//   }
+
+//   if (isNaN(PaidAmount)) {
+//     return res.status(400).json({ error: "Paid Amount must be an integer." });
+//   }
+
+//   // return req.body;
+
+//   // Build the SOAP request XML from the JSON input using xml2js.Builder
+//   const builder = new Builder();
+//   const soapRequestJson = {
+//     "s:Envelope": {
+//       $: {
+//         "xmlns:s": "http://schemas.xmlsoap.org/soap/envelope/",
+//         "xmlns:a": "http://schemas.xmlsoap.org/ws/2004/08/addressing",
+//       },
+//       "s:Header": {
+//         RequestCode: "REQ_12",
+//         AgencyID: agencyId,
+//         AgencyKey: agencyKey,
+//       },
+//       "s:Body": {
+//         Request: {
+//           OwnerIDNo: OwnerIDNo || null, // Static value
+//           OwnerCategoryID: parseInt(OwnerCategoryID) || null,
+//           VehicleRegistrationNumber: VehicleRegistrationNumber || null,
+//           NoticeNo: NoticeNo,
+//           ReceiptNo: ReceiptNo,
+//           PaymentTransactionType: parseInt(PaymentTransactionType) || null,
+//           PaymentDate: PaymentDate,
+//           PaidAmount: parseInt(PaidAmount),
+//           ChannelType: ChannelType || null,
+//           PaymentStatus: PaymentStatus || null,
+//           PaymentMode: PaymentMode || null,
+//           PaymentLocation: PaymentLocation,
+//           Notes: Notes || null,
+//         },
+//       },
+//     },
+//   };
+
+//   const soapRequest = builder.buildObject(soapRequestJson);
+
+//   const soapHeader = process.env.COMPOUND_SOAP;
+
+//   try {
+//     // Send SOAP request to the service using axios
+//     const response = await axios.post(process.env.COMPOUND_API, soapRequest, {
+//       headers: {
+//         "Content-Type": "text/xml",
+//         SOAPAction: soapHeader,
+//       },
+//     });
+
+//     // Parse the SOAP XML response to JSON
+//     xml2js.parseString(
+//       response.data,
+//       { explicitArray: false },
+//       (err, result) => {
+//         if (err) {
+//           return res.status(500).json({
+//             message: "Error parsing XML response",
+//             error: err.message,
+//           });
+//         }
+
+//         // Extract relevant data from the parsed JSON
+//         const envelope = result["s:Envelope"];
+//         const body = envelope["s:Body"];
+//         const responseContent = body?.Response;
+
+//         // If there's no response data
+//         if (!responseContent) {
+//           return res
+//             .status(404)
+//             .json({ message: "No data found in the response" });
+//         }
+
+//         let jsonResponse = {
+//           actionCode: responseContent.ActionCode || null,
+//           responseCode: responseContent.ResponseCode || null,
+//           responseMessage: responseContent.ResponseMessage || null,
+//         };
+
+//         // Only add these fields if the ResponseCode is "200"
+//         if (responseContent.ResponseCode === "200") {
+//           jsonResponse.noticeNo = responseContent.NoticeNo || null;
+//           jsonResponse.transactionId = responseContent.TransactionID || null;
+//           jsonResponse.receiptNo = responseContent.ReceiptNo || null;
+//         }
+
+//         // Return the response in JSON format
+//         return res.status(200).json({ success: true, data: jsonResponse });
+//       },
+//     );
+//   } catch (error) {
+//     console.error("Error during SOAP request:", error);
+//     return res
+//       .status(500)
+//       .json({ message: "Internal server error", error: error.message });
+//   }
+// });
+
 compoundRouter.post("/payCompound", async (req, res) => {
   const {
-    OwnerIDNo,
-    OwnerCategoryID,
-    VehicleRegistrationNumber,
     NoticeNo,
-    ReceiptNo,
-    PaymentTransactionType,
-    PaymentDate,
+    HandheldCode,
+    OfficerID,
+    ClampingPaidAmount,
     PaidAmount,
-    ChannelType,
-    PaymentStatus,
     PaymentMode,
-    PaymentLocation,
-    Notes,
   } = req.body;
 
-  const agencyId = process.env.COMPOUND_AGENCY_ID;
-  const agencyKey = process.env.COMPOUND_AGENCY_KEY;
+  const baseURL = process.env.COMPOUND_API;
 
-  if (isNaN(OwnerCategoryID)) {
-    return res
-      .status(400)
-      .json({ error: "Owner Category must be an integer." });
-  }
-
-  if (isNaN(PaymentTransactionType)) {
-    return res
-      .status(400)
-      .json({ error: "Payment Transaction Type must be an integer." });
-  }
-
-  if (isNaN(PaidAmount)) {
-    return res.status(400).json({ error: "Paid Amount must be an integer." });
-  }
-
-  // return req.body;
-
-  // Build the SOAP request XML from the JSON input using xml2js.Builder
-  const builder = new Builder();
-  const soapRequestJson = {
-    "s:Envelope": {
-      $: {
-        "xmlns:s": "http://schemas.xmlsoap.org/soap/envelope/",
-        "xmlns:a": "http://schemas.xmlsoap.org/ws/2004/08/addressing",
-      },
-      "s:Header": {
-        RequestCode: "REQ_12",
-        AgencyID: agencyId,
-        AgencyKey: agencyKey,
-      },
-      "s:Body": {
-        Request: {
-          OwnerIDNo: OwnerIDNo || null, // Static value
-          OwnerCategoryID: parseInt(OwnerCategoryID) || null,
-          VehicleRegistrationNumber: VehicleRegistrationNumber || null,
-          NoticeNo: NoticeNo,
-          ReceiptNo: ReceiptNo,
-          PaymentTransactionType: parseInt(PaymentTransactionType) || null,
-          PaymentDate: PaymentDate,
-          PaidAmount: parseInt(PaidAmount),
-          ChannelType: ChannelType || null,
-          PaymentStatus: PaymentStatus || null,
-          PaymentMode: PaymentMode || null,
-          PaymentLocation: PaymentLocation,
-          Notes: Notes || null,
-        },
-      },
-    },
-  };
-
-  const soapRequest = builder.buildObject(soapRequestJson);
-
-  const soapHeader = process.env.COMPOUND_SOAP;
+  // Build request payload dynamically
+  const requestBody = {};
+  if (NoticeNo) requestBody.NoticeNo = NoticeNo;
+  if (HandheldCode) requestBody.HandheldCode = HandheldCode;
+  if (OfficerID) requestBody.OfficerID = OfficerID;
+  if (ClampingPaidAmount) requestBody.ClampingPaidAmount = ClampingPaidAmount;
+  if (PaidAmount) requestBody.PaidAmount = PaidAmount;
+  if (PaymentMode) requestBody.PaymentMode = PaymentMode;
 
   try {
-    // Send SOAP request to the service using axios
-    const response = await axios.post(process.env.COMPOUND_API, soapRequest, {
-      headers: {
-        "Content-Type": "text/xml",
-        SOAPAction: soapHeader,
-      },
-    });
-
-    // Parse the SOAP XML response to JSON
-    xml2js.parseString(
-      response.data,
-      { explicitArray: false },
-      (err, result) => {
-        if (err) {
-          return res.status(500).json({
-            message: "Error parsing XML response",
-            error: err.message,
-          });
-        }
-
-        // Extract relevant data from the parsed JSON
-        const envelope = result["s:Envelope"];
-        const body = envelope["s:Body"];
-        const responseContent = body?.Response;
-
-        // If there's no response data
-        if (!responseContent) {
-          return res
-            .status(404)
-            .json({ message: "No data found in the response" });
-        }
-
-        let jsonResponse = {
-          actionCode: responseContent.ActionCode || null,
-          responseCode: responseContent.ResponseCode || null,
-          responseMessage: responseContent.ResponseMessage || null,
-        };
-
-        // Only add these fields if the ResponseCode is "200"
-        if (responseContent.ResponseCode === "200") {
-          jsonResponse.noticeNo = responseContent.NoticeNo || null;
-          jsonResponse.transactionId = responseContent.TransactionID || null;
-          jsonResponse.receiptNo = responseContent.ReceiptNo || null;
-        }
-
-        // Return the response in JSON format
-        return res.status(200).json({ success: true, data: jsonResponse });
+    const response = await axios.post(
+      baseURL + "/UpdateClamping",
+      requestBody,
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
       },
     );
+
+    return res.status(200).json(response.data);
   } catch (error) {
-    console.error("Error during SOAP request:", error);
-    return res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
+    console.error("Error calling external API:", error.message);
+    if (error.response) {
+      console.error("Response status:", error.response.status);
+      console.error("Response data:", error.response.data);
+    } else if (error.request) {
+      console.error("No response received:", error.request);
+    }
+    return res.status(500).json({ error: "Failed to update compound notice" });
   }
 });
 
