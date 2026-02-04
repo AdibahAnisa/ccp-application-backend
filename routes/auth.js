@@ -21,7 +21,7 @@ authRouter
       res.status(200).json(users);
     } catch (error) {
       logger.error(error);
-      return res.status(500).send(error);
+      res.status(500).json({ error: "Internal server error" });
     }
   })
   .patch("/restore/:id", async (req, res) => {
@@ -50,56 +50,17 @@ authRouter
     }
   });
 
-authRouter.use(tokenMiddleware);
-
 authRouter
-  .get("/user-profile", async (req, res) => {
-    try {
-      const user = await client.user.findUnique({
-        where: { id: req.user.userId },
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          secondName: true,
-          idNumber: true,
-          phoneNumber: true,
-          address1: true,
-          address2: true,
-          address3: true,
-          city: true,
-          state: true,
-          postcode: true,
-          wallet: {
-            select: {
-              amount: true,
-            },
-          },
-          plateNumbers: {
-            select: {
-              id: true,
-              plateNumber: true,
-              isMain: true,
-            },
-          },
-          reserveBays: true,
-          transactions: true,
-          helpdesks: true,
-        },
-      });
-      res.status(200).json(user);
-    } catch (error) {
-      logger.error(error);
-      return res.status(500).send({
-        message: error.message,
-        error: "Internal server error",
-      });
-    }
-  })
   .post("/signup", async (req, res) => {
     try {
       const { password, email, ...otherFields } = req.body;
       const userId = uuidv4();
+
+      if (!email || !password) {
+        return res
+          .status(400)
+          .json({ error: "Email and password are required" });
+      }
 
       // Check if the user with the same email exists
       const existing = await client.user.findFirst({
@@ -212,7 +173,55 @@ authRouter
       console.error("Error during sign-in:", error);
       res.status(500).json({ error: "Internal server error" });
     }
+  });
+
+authRouter.use(tokenMiddleware);
+
+authRouter
+  .get("/user-profile", async (req, res) => {
+    try {
+      const user = await client.user.findUnique({
+        where: { id: req.user.userId },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          secondName: true,
+          idNumber: true,
+          phoneNumber: true,
+          address1: true,
+          address2: true,
+          address3: true,
+          city: true,
+          state: true,
+          postcode: true,
+          wallet: {
+            select: {
+              amount: true,
+            },
+          },
+          plateNumbers: {
+            select: {
+              id: true,
+              plateNumber: true,
+              isMain: true,
+            },
+          },
+          reserveBays: true,
+          transactions: true,
+          helpdesks: true,
+        },
+      });
+      res.status(200).json(user);
+    } catch (error) {
+      logger.error(error);
+      return res.status(500).send({
+        message: error.message,
+        error: "Internal server error",
+      });
+    }
   })
+
   .put("/update", async (req, res) => {
     const userId = req.user.userId;
 
@@ -232,7 +241,7 @@ authRouter
       });
 
       res.status(201).json({
-        message: "Updade success",
+        message: "Update success",
         user: updatedUser,
       });
     } catch (error) {

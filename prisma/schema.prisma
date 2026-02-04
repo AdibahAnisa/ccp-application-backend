@@ -57,7 +57,7 @@ model ReserveBay {
   city                  String?
   state                 String?
   picFirstName          String?        @map("person_in_charge_first_name")
-  picLastName           String?        @map("person_in_charge_last_name")
+  picSecondName           String?        @map("person_in_charge_last_name")
   phoneNumber           String?
   email                 String?
   idNumber              String?        @map("id_number")
@@ -111,6 +111,8 @@ model User {
   firstName        String?            @map("first_name")
   secondName       String?            @map("second_name")
   idNumber         String?            @map("id_number")
+  country          String?            @map("country")
+  phoneCode        String?            @map("phone_code")
   phoneNumber      String?            @map("phone_number")
   email            String?            @unique
   password         String?

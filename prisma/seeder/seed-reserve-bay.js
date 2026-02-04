@@ -70,7 +70,7 @@ async function main() {
         city: `City-${i + 1}`,
         state: `State-${i + 1}`,
         picFirstName: `FirstName-${i + 1}`,
-        picLastName: `LastName-${i + 1}`,
+        picSecondName: `SecondName-${i + 1}`,
         phoneNumber: `555-555-55${i}`,
         email: `company${i + 1}@example.com`,
         idNumber: `ID-${i + 1}`,
