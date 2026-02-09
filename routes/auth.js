@@ -108,10 +108,20 @@ authRouter
         await client.$transaction(async (prisma) => {
           const newUser = await prisma.user.create({
             data: {
-              id: userId,
-              email,
+              id: uuidv4(),
+              firstName: req.body.firstName,
+              secondName: req.body.secondName,
+              email: req.body.email,
               password: hashedPassword,
-              ...otherFields,
+              phoneNumber: req.body.phoneNumber,
+              idNumber: req.body.idNumber,
+              address1: req.body.address1,
+              address2: req.body.address2,
+              address3: req.body.address3,
+              postcode: req.body.postcode ? parseInt(req.body.postcode) : null,
+              city: req.body.city,
+              state: req.body.state,
+              isDeleted: false,
             },
           });
 
@@ -135,8 +145,8 @@ authRouter
           });
         });
       } catch (error) {
-        logger.error(error);
-        res.status(500).json({ error: "Internal server error" });
+        console.error("SIGNUP ERROR 👉", error);
+        res.status(500).json({ error: error.message });
       }
     } catch (error) {
       logger.error(error);

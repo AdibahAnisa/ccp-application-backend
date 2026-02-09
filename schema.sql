@@ -139,7 +139,7 @@ CREATE TABLE `reserve_bay` (
   `postcode` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `city` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `person_in_charge_first_name` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `person_in_charge_last_name` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `person_in_charge_second_name` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `phoneNumber` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `email` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `id_number` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL,

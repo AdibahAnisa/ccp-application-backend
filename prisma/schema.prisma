@@ -57,7 +57,7 @@ model ReserveBay {
   city                  String?
   state                 String?
   picFirstName          String?        @map("person_in_charge_first_name")
-  picSecondName           String?        @map("person_in_charge_last_name")
+  picSecondName           String?        @map("person_in_charge_second_name")
   phoneNumber           String?
   email                 String?
   idNumber              String?        @map("id_number")
@@ -107,7 +107,7 @@ model WalletTransaction {
 }
 
 model User {
-  id               String             @id @unique(map: "id")
+  id               String             @id @default(uuid())
   firstName        String?            @map("first_name")
   secondName       String?            @map("second_name")
   idNumber         String?            @map("id_number")
