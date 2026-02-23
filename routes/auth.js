@@ -239,8 +239,20 @@ authRouter
       const updatedUser = await client.user.update({
         where: { id: userId },
         data: {
-          ...req.body,
+          firstName: req.body.firstName ?? null,
+          secondName: req.body.secondName ?? null,
+          email: req.body.email ?? null,
+          idNumber: req.body.idNumber || null,
+          phoneNumber: req.body.phoneNumber || null,
+          address1: req.body.address1 || null,
+          address2: req.body.address2 || null,
+          address3: req.body.address3 || null,
+          city: req.body.city || null,
+          state: req.body.state || null,
+
+          postcode: req.body.postcode ? parseInt(req.body.postcode) : null,
         },
+
         include: {
           wallet: true,
           plateNumbers: true,
