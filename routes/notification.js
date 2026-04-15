@@ -36,12 +36,12 @@ notificationRouter
       // Create a new MonthlyPass
       const createNotification = await client.notification.create({
         data: {
-          id,
-          userId: userId,
-          title: title,
-          description: description ?? null,
+          id: crypto.randomUUID(),
+          userId: user.id,
+          title: "Parking Alert",
+          description: message,
+          parkingId: parking.id,
           notifyTime: notifyTime,
-          parkingId: parkingId ?? null,
           monthlyPassId: monthlyPassId ?? null,
           reserveBayId: reserveBayId ?? null,
           createdAt: createdAt || new Date(),

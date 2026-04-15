@@ -95,11 +95,11 @@ compoundRouter.post("/display", async (req, res) => {
 //         .json({ message: "No plate numbers found for this user" });
 //     }
 
-//     const plateNumbers = plates.map((plate) => plate.plateNumber);
+//     const plateNumber = plates.map((plate) => plate.plateNumber);
 //     let allSummonses = [];
 //     let actionCode, responseCode, responseMessage;
 
-//     for (const plateNumber of plateNumbers) {
+//     for (const plateNumber of plateNumber) {
 //       const builder = new Builder();
 //       const soapRequestJson = {
 //         "s:Envelope": {

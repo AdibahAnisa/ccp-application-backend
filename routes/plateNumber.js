@@ -29,14 +29,14 @@ plateNumberRouter
     try {
       const user = await client.user.findUnique({
         where: { id: userId },
-        include: { plateNumbers: true },
+        include: { plateNumber: true },
       });
 
       if (!user) {
         throw new Error("User not found");
       }
 
-      const mainPlate = user.plateNumbers.find((plate) => plate.isMain);
+      const mainPlate = user.plateNumber.find((plate) => plate.isMain);
 
       if (isMain && mainPlate) {
         await client.plateNumber.update({

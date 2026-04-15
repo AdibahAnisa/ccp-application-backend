@@ -35,7 +35,7 @@ model Pbt {
 model PlateNumber {
   id          String   @id @unique(map: "id")
   userId      String   @map("user_id")
-  plateNumber String   @map("plate_number")
+  plateNumber  String   @map("plate_number")
   isMain      Boolean  @map("is_main")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @default(now()) @map("updated_at")
@@ -110,6 +110,7 @@ model User {
   id               String             @id @default(uuid())
   firstName        String?            @map("first_name")
   secondName       String?            @map("second_name")
+  fcmToken         String?
   idNumber         String?            @map("id_number")
   country          String?            @map("country")
   phoneCode        String?            @map("phone_code")
@@ -125,11 +126,13 @@ model User {
   otp              String? // To store OTP
   otpExpiresAt     DateTime? // To store OTP expiration time
   wallet           Wallet?
+  tokenBalance     Float              @default(0)
+  autoDeduct       Boolean            @default(false)
   isDeleted        Boolean            @default(false) // Field for soft delete
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @default(now()) @map("updated_at")
   helpdesks        Helpdesk[]
-  plateNumbers     PlateNumber[]
+  plateNumber      PlateNumber[]
   reserveBays      ReserveBay[]
   transactions     Transaction[]
   MonthlyPass      MonthlyPass[]
@@ -137,6 +140,7 @@ model User {
   Compound         Compound[]
   PromotionHistory PromotionHistory[]
   Notification     Notification[]
+  vehicles         vehicle[]
 
   @@map("user")
 }
@@ -144,12 +148,33 @@ model User {
 model Wallet {
   id                String              @id @unique(map: "id")
   userId            String              @unique @map("user_id")
-  amount            Decimal             @default(0)
+  walletAmount      Decimal             @default(0)
   user              User?               @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   WalletTransaction WalletTransaction[]
 
   @@map("wallet")
 }
+
+model LprNotify {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  plateNumber   String   @map("plate_number")
+  status        String
+  snapshotUrl   String?
+  eventUuid     String   @unique
+  createdAt     DateTime @default(now())
+
+  @@map("lpr_notify")
+}
+
+model vehicle {
+  id          String @id @default(uuid())
+  plateNumber String   @map("plate_number")
+  userId      String
+
+  user User @relation(fields: [userId], references: [id])
+}
+
 
 model PaymentTransaction {
   id           String   @id @unique
@@ -210,6 +235,7 @@ model Parking {
   area                String    @default("No Area")
   state               String    @default("No State")
   expiredAt           DateTime?
+  last_notified_status String?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @map("updated_at")

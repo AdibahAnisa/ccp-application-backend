@@ -36,7 +36,7 @@ async function createUser() {
           amount: 100.0,
         },
       },
-      plateNumbers: {
+      plateNumber: {
         create: [
           {
             id: uuidv4(),
@@ -53,7 +53,7 @@ async function createUser() {
     },
     include: {
       wallet: true,
-      plateNumbers: true,
+      plateNumber: true,
     },
   });
 

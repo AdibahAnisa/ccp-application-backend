@@ -4,6 +4,7 @@ import {
   hashPassword,
   comparePasswords,
   tokenMiddleware,
+  authenticateToken,
 } from "../utils/authUtils.js";
 import { v4 as uuidv4 } from "uuid";
 import logger from "../utils/logger.js";
@@ -130,7 +131,7 @@ authRouter
             data: {
               id: uuidv4(),
               userId: newUser.id,
-              amount: 0,
+              walletAmount: 0,
             },
           });
 
@@ -142,6 +143,8 @@ authRouter
           res.status(201).json({
             message: "User registered successfully",
             token,
+            autoDeduct: newUser.autoDeduct,
+            hasWallet: true,
           });
         });
       } catch (error) {
@@ -163,7 +166,18 @@ authRouter
     try {
       const user = await client.user.findFirst({
         where: { email, isDeleted: false },
-        select: { id: true, email: true, password: true },
+        select: {
+          id: true,
+          email: true,
+          password: true,
+          autoDeduct: true,
+          wallet: {
+            select: {
+              id: true,
+              walletAmount: true,
+            },
+          },
+        },
       });
 
       if (!user) {
@@ -172,23 +186,102 @@ authRouter
 
       const isValid = comparePasswords(password, user.password);
 
+      if (!user.password) {
+        return res.status(500).json({ error: "User password not set" });
+      }
+
       if (!isValid) {
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
       // Generate token
       const token = generateToken({ email, userId: user.id });
-      res.status(200).json({ message: "Login Success", token });
+      res.status(200).json({
+        message: "Login Success",
+        token,
+        autoDeduct: user.autoDeduct,
+        hasWallet: !!user.wallet,
+        hasWalletAmount: !!user.wallet?.walletAmount,
+      });
     } catch (error) {
-      console.error("Error during sign-in:", error);
-      res.status(500).json({ error: "Internal server error" });
+      console.error(error);
+      res.status(500).json({ error: error.message });
     }
   });
 
-authRouter.use(tokenMiddleware);
+authRouter.post("/save-wallet-token", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { walletAmount } = req.body;
+
+    if (!walletAmount) {
+      return res.status(400).json({ error: "Wallet token is required" });
+    }
+
+    await client.wallet.update({
+      where: { userId: userId },
+      data: {
+        walletAmount: walletAmount,
+      },
+    });
+
+    res.status(200).json({
+      message: "Wallet token saved successfully",
+    });
+  } catch (error) {
+    console.error("SAVE WALLET ERROR:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+authRouter.post("/toggle-auto-deduct", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { autoDeduct } = req.body;
+
+    const user = await client.user.update({
+      where: { id: userId },
+      data: { autoDeduct },
+    });
+
+    res.status(200).json({
+      autoDeduct: user.autoDeduct,
+    });
+  } catch (error) {
+    console.error("AUTO DEDUCT ERROR:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+authRouter.post("/save-fcm-token", authenticateToken, async (req, res) => {
+  console.log("📩 USER FROM TOKEN:", req.user);
+  console.log("📩 BODY:", req.body);
+  try {
+    const userId = req.user.userId;
+    const { fcmToken } = req.body;
+
+    if (!fcmToken) {
+      return res.status(400).json({ error: "FCM token is required" });
+    }
+
+    await client.user.update({
+      where: { id: userId },
+      data: {
+        fcmToken: fcmToken,
+      },
+    });
+
+    res.status(200).json({
+      message: "FCM token saved successfully",
+    });
+  } catch (error) {
+    console.error("SAVE FCM ERROR:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 authRouter
-  .get("/user-profile", async (req, res) => {
+  .get("/user-profile", authenticateToken, async (req, res) => {
     try {
       const user = await client.user.findUnique({
         where: { id: req.user.userId },
@@ -207,10 +300,10 @@ authRouter
           postcode: true,
           wallet: {
             select: {
-              amount: true,
+              walletAmount: true,
             },
           },
-          plateNumbers: {
+          plateNumber: {
             select: {
               id: true,
               plateNumber: true,
@@ -222,7 +315,21 @@ authRouter
           helpdesks: true,
         },
       });
-      res.status(200).json(user);
+      res.status(200).json({
+        message: "Login Success",
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          secondName: user.secondName,
+          fullName: `${user.firstName} ${user.secondName}`,
+          phoneNumber: user.phoneNumber,
+          wallet: user.wallet,
+          plateNumber: user.plateNumber,
+        },
+        autoDeduct: user.autoDeduct,
+        hasWallet: !!user.wallet,
+      });
     } catch (error) {
       logger.error(error);
       return res.status(500).send({
@@ -255,7 +362,7 @@ authRouter
 
         include: {
           wallet: true,
-          plateNumbers: true,
+          plateNumber: true,
           reserveBays: true,
           transactions: true,
           helpdesks: true,

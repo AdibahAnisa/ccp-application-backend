@@ -1,4 +1,6 @@
 import "dotenv/config";
+import { startLPRCron } from "./cron/lprCron.js";
+import axios from "axios";
 import express from "express";
 import authRouter from "./routes/auth.js";
 import reservebayRouter from "./routes/reservebay.js";
@@ -20,7 +22,6 @@ import forgetPasswordRouter from "./routes/forgetPassword.js";
 import parkingRouter from "./routes/parking.js";
 import promotionRouter from "./routes/promotionsMonthlyPass.js";
 import notificationRouter from "./routes/notification.js";
-import axios from "axios";
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -53,6 +54,7 @@ app.use("/promotion", promotionRouter);
 app.use("/notification", notificationRouter);
 
 const startupTime = new Date();
+startLPRCron();
 
 // Set an interval to refresh the token every 10 minutes
 let accessToken;
@@ -109,15 +111,6 @@ const refreshToken = async () => {
 const refreshInterval = 10 * 60 * 1000; // 10 minutes in milliseconds
 setInterval(refreshToken, refreshInterval);
 
-import jwt from "jsonwebtoken";
-
-export const generateToken = (payload) => {
-  if (!process.env.JWT_SECRET) {
-    throw new Error("JWT_SECRET not defined");
-  }
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "1h" });
-};
-
 app.get("/health", async (_req, res) => {
   try {
     await client.user.findFirst();
@@ -135,7 +128,7 @@ app.get("/health", async (_req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   logger.info(`Server running on port ${PORT}`);
   checkDbConnection();
 });

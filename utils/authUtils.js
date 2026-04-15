@@ -16,6 +16,27 @@ export const verifyToken = (token) => {
   }
 };
 
+export const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({ error: "No token provided" });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = jsonwebtoken.verify(token, secret);
+
+    req.user = decoded; // ✅ VERY IMPORTANT
+
+    next();
+  } catch (err) {
+    console.error("TOKEN ERROR:", err);
+    return res.status(401).json({ error: "Invalid token" });
+  }
+};
+
 export const refreshToken = (token) => {
   return jsonwebtoken.sign(token, secret, { expiresIn: "1d" });
 };
