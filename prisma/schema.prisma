@@ -164,6 +164,9 @@ model LprNotify {
   eventUuid     String   @unique
   createdAt     DateTime @default(now())
 
+  eo_notified   Boolean  @default(false)
+  detectedAt    DateTime? @map("detected_at")
+
   @@map("lpr_notify")
 }
 

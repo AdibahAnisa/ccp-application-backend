@@ -17,7 +17,25 @@ export const syncLPRPlates = async () => {
     for (const item of plates) {
       try {
         const plateNumber = normalizePlate(item.plate);
-        const status = item.status?.toLowerCase();
+        const eventTime = new Date(item.timestamp);
+        const now = new Date();
+
+        // Only allow events within last 1 minute
+        const diffMs = now - eventTime;
+
+        if (diffMs > 30000) {
+          console.log("⏱️ Skip old LPR event:", item.timestamp);
+          continue;
+        }
+        const rawStatus = item.status?.toLowerCase() || "";
+
+        let status = "unknown";
+
+        if (rawStatus.includes("paid")) {
+          status = "paid";
+        } else if (rawStatus.includes("tidak") || rawStatus.includes("not")) {
+          status = "not_paid";
+        }
         const eventUuid = item.event_uuid;
 
         if (!plateNumber || !eventUuid) continue;
@@ -60,28 +78,30 @@ export const syncLPRPlates = async () => {
         console.log("✅ User found:", user.id);
 
         // DUPLICATE CHECK HERE
-        // const recent = await client.lprNotify.findFirst({
-        //   where: {
-        //     plateNumber,
-        //     createdAt: {
-        //       gte: new Date(Date.now() - 30000), // 30 sec
-        //     },
-        //   },
-        // });
+        const recent = await client.lprNotify.findFirst({
+          where: {
+            plateNumber,
+            createdAt: {
+              gte: new Date(Date.now() - 5000), // 10 sec
+            },
+          },
+        });
 
-        // if (recent) {
-        //   console.log("⚠️ Skip duplicate notification (within 30s)");
-        //   continue;
-        // }
+        if (recent) {
+          console.log("⚠️ Skip duplicate notification (within 30s)");
+          continue;
+        }
 
         // Save LPR event
         await client.lprNotify.create({
           data: {
             userId: user.id,
             plateNumber,
-            status,
+            status: status,
             snapshotUrl: item.snapshot_url,
             eventUuid,
+            eo_notified: false,
+            detectedAt: new Date(item.timestamp),
           },
         });
 
@@ -93,23 +113,22 @@ export const syncLPRPlates = async () => {
 
         console.log("📤 Processing notification...");
 
-        let title = "";
-        let message = "";
+        let type = "";
 
         if (status === "paid") {
-          message = `Terima kasih 😊 No plate ${plateNumber} telah membuat bayaran parking.`;
+          type = "PAID";
         } else {
           const hasWalletAmount = !!user.wallet?.walletAmount;
           const autoDeduct = user.autoDeduct;
 
           if (autoDeduct && hasWalletAmount) {
-            message = `Terima kasih 😊 Bayaran parking untuk ${plateNumber} telah dibuat secara automatik.`;
+            type = "AUTO_PAID";
           } else if (autoDeduct && !hasWalletAmount) {
-            message = `⚠️ Tiada wallet. Sila tambah kaedah pembayaran untuk ${plateNumber}.`;
+            type = "NO_WALLET";
           } else if (!autoDeduct && hasWalletAmount) {
-            message = `⚠️ Sila aktifkan auto deduct untuk ${plateNumber}.`;
+            type = "AUTO_OFF";
           } else {
-            message = `⚠️ Sila aktifkan auto deduct dan tambah kaedah pembayaran untuk ${plateNumber}.`;
+            type = "SETUP_REQUIRED";
           }
         }
 
@@ -121,7 +140,17 @@ export const syncLPRPlates = async () => {
         // Send notification
         console.log("📤 Sending notification to user:", user.id);
 
-        await sendNotification(user.id, "Parking Update", message);
+        const plateText = plateNumber || "Unknown vehicle";
+
+        await sendNotification(
+          user.id,
+          "Parking confirmation required",
+          `An enforcement officer has detected your vehicle ${plateText}. Please confirm your parking within 5 minutes to avoid being fined.`,
+          {
+            type: "CONFIRM_PARKING",
+            plateNumber: plateNumber,
+          },
+        );
 
         console.log("✅ Notification sent");
       } catch (innerError) {

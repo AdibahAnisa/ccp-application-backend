@@ -1,7 +1,7 @@
 import client from "../utils/db.js";
 import admin from "../utils/firebase.js";
 
-export const sendNotification = async (userId, title, body) => {
+export const sendNotification = async (userId, title, body, data) => {
   const user = await client.user.findUnique({
     where: { id: userId },
   });
@@ -19,6 +19,9 @@ export const sendNotification = async (userId, title, body) => {
       notification: {
         title,
         body,
+      },
+      data: {
+        ...data,
       },
     });
 

@@ -370,7 +370,8 @@ paymentRouter
     const qr_body = {
       order_output: order_output,
       order_no: order_number,
-      override_existing_unprocessed_order_no: override_existing_unprocessed_order_no,
+      override_existing_unprocessed_order_no:
+        override_existing_unprocessed_order_no,
       order_amount: order_amount,
       qr_validity: validity_qr, //store in env
       store_id: "Terminal",
@@ -788,7 +789,8 @@ paymentRouter
     const qr_body = {
       order_output: order_output,
       order_no: order_number,
-      override_existing_unprocessed_order_no: override_existing_unprocessed_order_no,
+      override_existing_unprocessed_order_no:
+        override_existing_unprocessed_order_no,
       order_amount: order_amount,
       qr_validity: validity_qr, //store in env
       store_id: "LPR",
@@ -1110,12 +1112,13 @@ async function storeTokens(req, res, next) {
       },
     });
 
-    req.accessToken = token.accessToken;
-    req.refreshToken = token.refreshToken;
-    next();
     if (!token) {
       return res.status(404).json({ error: "No tokens found" });
     }
+
+    req.accessToken = token.accessToken;
+    req.refreshToken = token.refreshToken;
+    next();
   } catch (error) {
     console.error("Database error:", error);
     return res.status(500).json({ error: "Internal server error" });
@@ -1418,7 +1421,7 @@ paymentRouter.post("/pegepay/qr/callback", async (req, res) => {
         .status(404)
         .json({ error: "Transaction record not found, wrong transaction id" });
     }
-  } catch (error) { }
+  } catch (error) {}
 });
 
 paymentRouter.post("/topup-wallet", async (req, res) => {
