@@ -22,6 +22,7 @@ import forgetPasswordRouter from "./routes/forgetPassword.js";
 import parkingRouter from "./routes/parking.js";
 import promotionRouter from "./routes/promotionsMonthlyPass.js";
 import notificationRouter from "./routes/notification.js";
+import lprRoutes from "./routes/lprRoutes.js";
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -52,6 +53,7 @@ app.use("/forgot-password", forgetPasswordRouter);
 app.use("/parking", parkingRouter);
 app.use("/promotion", promotionRouter);
 app.use("/notification", notificationRouter);
+app.use("/api", lprRoutes);
 
 const startupTime = new Date();
 startLPRCron();

@@ -20,35 +20,36 @@ notificationRouter
     }
   })
   .post("/create", async (req, res) => {
+    const userId = req.user.userId;
+
     const {
-      userId,
       title,
       description,
       notifyTime,
       parkingId,
       monthlyPassId,
       reserveBayId,
-      createdAt,
-    } = req.body; // Destructure relevant data from req.body
-    const id = uuidv4(); // Generate unique ID for MonthlyPass
+    } = req.body;
 
     try {
-      // Create a new MonthlyPass
       const createNotification = await client.notification.create({
         data: {
           id: crypto.randomUUID(),
-          userId: user.id,
-          title: "Parking Alert",
-          description: message,
-          parkingId: parking.id,
-          notifyTime: notifyTime,
+          userId,
+          title,
+          description,
+          notifyTime: notifyTime ? new Date(notifyTime) : new Date(),
+          parkingId: parkingId ?? null,
           monthlyPassId: monthlyPassId ?? null,
           reserveBayId: reserveBayId ?? null,
-          createdAt: createdAt || new Date(),
+          createdAt: new Date(),
         },
       });
 
-      res.status(201).json({ status: "success", data: createNotification });
+      res.status(201).json({
+        status: "success",
+        data: createNotification,
+      });
     } catch (error) {
       res.status(400).json({ error: error.message });
     }

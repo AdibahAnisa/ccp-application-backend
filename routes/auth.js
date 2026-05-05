@@ -256,6 +256,7 @@ authRouter.post("/toggle-auto-deduct", authenticateToken, async (req, res) => {
 authRouter.post("/save-fcm-token", authenticateToken, async (req, res) => {
   console.log("📩 USER FROM TOKEN:", req.user);
   console.log("📩 BODY:", req.body);
+
   try {
     const userId = req.user.userId;
     const { fcmToken } = req.body;
@@ -264,6 +265,20 @@ authRouter.post("/save-fcm-token", authenticateToken, async (req, res) => {
       return res.status(400).json({ error: "FCM token is required" });
     }
 
+    // 1. Remove this phone token from other users
+    await client.user.updateMany({
+      where: {
+        fcmToken: fcmToken,
+        NOT: {
+          id: userId,
+        },
+      },
+      data: {
+        fcmToken: null,
+      },
+    });
+
+    // 2. Save token only to current logged-in user
     await client.user.update({
       where: { id: userId },
       data: {

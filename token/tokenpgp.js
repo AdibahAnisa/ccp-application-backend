@@ -8,45 +8,69 @@ let tokens = {
 };
 
 const TOKEN_EXPIRATION_TIME = 30 * 60 * 1000;
-export async function storeTokens(req, res, next) {
-  try {
-    const token = await client.token.findFirst({
-      where: {
-        type: "QR Pegepay",
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+export function storeTokens(type) {
+  return async (req, res, next) => {
+    try {
+      const token = await client.token.findFirst({
+        where: { type },
+        orderBy: { createdAt: "desc" },
+      });
 
-    if (!token) {
-      return res.status(404).json({ error: "No tokens found" });
+      if (!token) {
+        return res.status(404).json({ error: "No tokens found" });
+      }
+
+      const now = Date.now();
+
+      // 🔥 AUTO REFRESH TOKEN
+      if (token.expiresIn && now >= token.expiresIn) {
+        console.log("Token expired → refreshing...");
+
+        const response = await axios.post(process.env.REFRESH_TOKEN, {
+          refresh_token: token.refreshToken,
+        });
+
+        const newAccessToken = response.data.access_token;
+        const newRefreshToken = response.data.refresh_token;
+
+        await client.token.update({
+          where: { id: token.id },
+          data: {
+            accessToken: newAccessToken,
+            refreshToken: newRefreshToken,
+            expiresIn: Date.now() + 30 * 60 * 1000, // 30 min
+          },
+        });
+
+        req.accessToken = newAccessToken;
+      } else {
+        req.accessToken = token.accessToken;
+      }
+
+      req.refreshToken = token.refreshToken;
+
+      next();
+    } catch (error) {
+      console.error("TOKEN ERROR:", error);
+      return res.status(500).json({ error: "Token handling failed" });
     }
-
-    req.accessToken = token.accessToken;
-    req.refreshToken = token.refreshToken;
-    next();
-
-    scheduleTokenRefresh(token);
-  } catch (error) {
-    console.error("Database error:", error);
-    return res.status(500).json({ error: "Internal server error" });
-  }
+  };
 }
 
 export async function refreshTokens(oldToken) {
   try {
     const response = await axios.post(process.env.REFRESH_TOKEN, {
-      access_token: oldToken.accessToken,
+      refresh_token: oldToken.refreshToken,
     });
 
     const newAccessToken = response.data.access_token;
+    const newRefreshToken = response.data.refresh_token;
 
     await client.token.update({
       where: { id: oldToken.id },
       data: {
         accessToken: newAccessToken,
-        refreshToken: refreshToken,
+        refreshToken: newRefreshToken,
         createdAt: new Date(),
       },
     });
@@ -57,7 +81,7 @@ export async function refreshTokens(oldToken) {
     scheduleTokenRefresh({
       ...oldToken,
       accessToken: newAccessToken,
-      refreshToken: refreshToken,
+      refreshToken: newRefreshToken,
     });
   } catch (error) {
     console.error("Error refreshing tokens:", error);

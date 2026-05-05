@@ -1,5 +1,6 @@
 import client from "../utils/db.js";
 import admin from "../utils/firebase.js";
+import { testLPRNotification } from "../services/lprServices.js";
 
 export const sendNotification = async (userId, title, body, data) => {
   const user = await client.user.findUnique({
